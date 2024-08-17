@@ -6,7 +6,7 @@ from torchvision.tv_tensors import BoundingBoxes
 
 from torchvision.transforms import v2
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import PIL
 
@@ -69,26 +69,31 @@ class MaskDataset(torch.utils.data.Dataset):
         images = []
         targets = []
         for ii in range(self.batch_size*idx, self.batch_size*(idx+1)):
-            
+
             img_path = os.path.join(self.img_dir, self.images[ii])
-            images.append(pil_to_tensor(PIL.Image.open(img_path).convert("RGB")).to(dtype=torch.float))
-            
-            img_label_path = os.path.join(self.img_annot, self.images[ii][:-3] + "xml")            
+            img_label_path = os.path.join(self.img_annot, self.images[ii][:-3] + "xml") 
+
+            image = pil_to_tensor(PIL.Image.open(img_path).convert("RGB")).to(dtype=torch.float)
             ground_truth = xmltodict.parse(open(img_label_path).read())
 
             objects = [ground_truth["annotation"]["object"]] if type(ground_truth["annotation"]["object"]) is not list else ground_truth["annotation"]["object"]
-            
             boxes = torch.tensor([[float(box["bndbox"]["xmin"]), float(box["bndbox"]["ymin"]), float(box["bndbox"]["xmax"]), float(box["bndbox"]["ymax"])] for box in objects], dtype=torch.float)
             labels = torch.tensor([self.label_map[label["name"]] for label in objects], dtype=torch.int64)
+
+            boxes = BoundingBoxes(boxes, format="XYXY", canvas_size=image[-1].shape[-2:])
+            if self.transform is not None:
+                image, boxes = self.transform(image, boxes)
+
+            images.append(image)
+
             areas = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-            image_path = img_path
-            label_path = img_label_path
+            
             iscrowd = torch.zeros(boxes.shape[0], dtype=torch.int8)
-            targets.append({"boxes": BoundingBoxes(boxes, format="XYXY", canvas_size=images[-1].shape[-2:]),
+            targets.append({"boxes": boxes,
                             "labels": labels,
                             "area": areas,
-                            "image_path": image_path,
-                            "label_path": label_path,
+                            "image_path": img_path,
+                            "label_path": img_label_path,
                             "iscrowd": iscrowd})
             
         return images, targets

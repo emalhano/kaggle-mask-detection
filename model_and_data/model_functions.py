@@ -18,7 +18,7 @@ import torch
 import torchvision
 import torch.nn as nn
 
-from data_loader import MaskDataset
+from model_and_data.data_loader import MaskDataset
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -31,11 +31,12 @@ def create_model():
     model = fasterrcnn_resnet50_fpn_v2(weights=weights, box_score_thresh=0.9)
 
     in_channels = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = faster_rcnn.FastRCNNPredictor(in_channels=in_channels, num_classes=4)
 
     for parameter in model.parameters():
         parameter.requires_grad = False
-        
+
+    model.roi_heads.box_predictor = faster_rcnn.FastRCNNPredictor(in_channels=in_channels, num_classes=4)
+
     for parameter in model.roi_heads.parameters():
         parameter.requires_grad = True
         
@@ -51,9 +52,8 @@ def train_model(model, data_loader, epochs=15):
         
         print(f"Epoch: {epoch:.0f}/{range(epochs)[-1]:.0f}")
         
-        n=0
         model.train()
-        for image, label in data_loader:
+        for (image, label), n in zip(data_loader, range(len(data_loader))):
             
             for ii in range(len(image)):
                 image[ii] = image[ii].to(device)
